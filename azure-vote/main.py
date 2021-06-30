@@ -7,7 +7,7 @@ import sys
 import logging
 from datetime import datetime
 
-from opencensus.ext.azure.log_exporter import AzureLogHandler
+from opencensus.ext.azure.log_exporter import AzureLogHandler, AzureEventHandler
 
 # App Insights
 from opencensus.ext.azure import metrics_exporter
@@ -64,7 +64,21 @@ else:
     title = app.config['TITLE']
 
 # Redis Connection
-r = redis.Redis()
+#r = redis.Redis()
+
+redis_server = os.environ['REDIS']
+
+# Redis Connection to another container
+try:
+    if "REDIS_PWD" in os.environ:
+        r = redis.StrictRedis(host=redis_server,
+                        port=6379,
+                        password=os.environ['REDIS_PWD'])
+    else:
+        r = redis.Redis(redis_server)
+    r.ping()
+except redis.ConnectionError:
+    exit('Failed to connect to Redis, terminating.')
 
 # Change title to host name to demo NLB
 if app.config['SHOWHOST'] == "true":
@@ -81,6 +95,7 @@ def index():
 
         vote1 = r.get(button1).decode('utf-8')
         tracer.span(name="Cats")
+
         vote2 = r.get(button2).decode('utf-8')
         tracer.span(name="Dogs")
 
@@ -94,12 +109,12 @@ def index():
             r.set(button1,0)
             r.set(button2,0)
             vote1 = r.get(button1).decode('utf-8')
-            properties = {'custom_dimensions': {'Cats Vote': vote1}}
+            properties = {'custom_dimensions': {'Cats': vote1}}
             logger.warning('Cats', extra=properties)
             # TODO: use logger object to log cat vote
 
             vote2 = r.get(button2).decode('utf-8')
-            properties = {'custom_dimensions': {'Dogs Vote': vote2}}
+            properties = {'custom_dimensions': {'Dogs': vote2}}
             logger.warning('Dogs', extra=properties)
             # TODO: use logger object to log dog vote
            
